@@ -14,12 +14,12 @@ class HandTracking:
 
         # Khởi tạo GestureRecognition
         self.gesture_detector = GestureRecognition(
-            "C:/Users/nhh17/OneDrive/Documents/ros_hand_gesture_recognition-main/model/keypoint_classifier/keypoint_classifier_label.csv",
-            "C:/Users/nhh17/OneDrive/Documents/ros_hand_gesture_recognition-main/model/keypoint_classifier/keypoint_classifier.tflite"
+            "C:/Users/nhh17/OneDrive/Documents/hand_gesture_person_following/model/keypoint_classifier/keypoint_classifier_label.csv",
+            "C:/Users/nhh17/OneDrive/Documents/hand_gesture_person_following/model/keypoint_classifier/keypoint_classifier.tflite"
         )
         
         self.cv_fps_calc = CvFpsCalc(buffer_len=10)
-        self.cap = cv2.VideoCapture(1)
+        self.cap = cv2.VideoCapture(0)
 
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
@@ -57,17 +57,18 @@ class HandTracking:
             # Vẽ
             center_x = center_y = 0
             status_text = "Not Tracking"
+            location_text = "Center"
             height, width, _ = frame.shape
 
-            width_left = width // 2 - 100
-            width_right = width // 2 + 100
+            width_left = width // 2 - 150
+            width_right = width // 2 + 150
             
             cv2.line(frame, (width // 2, 0), (width // 2, height), (255, 0, 0), 2)
-            cv2.line(frame, (0, height // 2), (width, height // 2), (255, 0, 0), 2)
+            # cv2.line(frame, (0, height // 2), (width, height // 2), (255, 0, 0), 2)
             cv2.line(frame, (width_left, 0), (width_left, height), (255, 150, 0), 2)
             cv2.line(frame, (width_right, 0), (width_right, height), (255, 150, 0), 2)
             cv2.rectangle(frame, (0, 0), (width, 40), (0, 0, 0), -1)
-            cv2.putText(frame, gesture, (350, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 255), 2)
+            cv2.putText(frame, gesture, ((width // 2 ) // 2, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 255), 2)
 
             # Bắt đầu xác nhận cử chỉ nếu phát hiện mới
             if gesture is not None and gesture != self.gesture_detected:
@@ -81,7 +82,7 @@ class HandTracking:
 
             # Kích hoạt hoặc dừng theo dõi
             if self.gesture_confirmed:
-                if self.gesture_detected == 'Start' and not self.tracking:
+                if self.gesture_detected == 'Follow' and not self.tracking:
                     self.tracking = True
                     self.no_detection_start_time = None
                 elif self.gesture_detected == 'Stop' and self.tracking:
@@ -115,6 +116,13 @@ class HandTracking:
                             center_x = int((x1 + x2) / 2)
                             center_y = int((y1 + y2) / 2)
 
+                            if width_left < center_x < width_right:
+                                location_text = "Center"
+                            elif center_x < width_left:
+                                location_text = "Left"
+                            else:
+                                location_text = "Right"
+
                             # Vẽ điểm ước lượng và tọa độ trung tâm
                             cv2.circle(frame, (center_x, center_y), 5, (0, 0, 255), -1)
 
@@ -127,10 +135,10 @@ class HandTracking:
 
                 # Nếu không phát hiện đối tượng, kiểm tra thời gian
                 else:
+                    status_text = "No Detection"
                     if self.no_detection_start_time is None:
                         self.no_detection_start_time = time.time()
                     elif time.time() - self.no_detection_start_time >= self.detection_timeout:
-                        status_text = "No Detection"
                         self.reset_tracking()
                         self.gesture_start_time = None
                         self.gesture_confirmed = False
@@ -146,7 +154,8 @@ class HandTracking:
             debug_image = self.gesture_detector.draw_fps_info(frame, fps)
             coord_text = f'X:{center_x}    Y:{center_y}'
             cv2.putText(frame, coord_text, (width // 2, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-            cv2.putText(frame, status_text, (width - 200, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+            cv2.putText(frame, status_text, ((width // 2 ) + (width // 4), 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+            cv2.putText(frame, location_text, (10, height), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2)
 
             cv2.imshow('Person Following', debug_image)
 

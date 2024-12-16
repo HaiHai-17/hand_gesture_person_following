@@ -54,51 +54,46 @@ class GestureRecognition:
         return hands, keypoint_classifier, keypoint_classifier_labels
 
     def recognize(self, image, number=-1, mode=0):
-
         # TODO: Move constants to other place
         USE_BRECT = True
 
-        image = cv.flip(image, 1)  # Mirror display
         debug_image = copy.deepcopy(image)
-
         gesture = "None"
 
         # Detection implementation
         image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
-
         image.flags.writeable = False
         results = self.hands.process(image)
         image.flags.writeable = True
 
         if results.multi_hand_landmarks is not None:
-            for hand_landmarks, handedness in zip(results.multi_hand_landmarks,
-                                                  results.multi_handedness):
+            for hand_landmarks in results.multi_hand_landmarks:  # Chỉ duyệt qua landmarks
                 # Bounding box calculation
                 brect = self._calc_bounding_rect(debug_image, hand_landmarks)
                 # Landmark calculation
                 landmark_list = self._calc_landmark_list(debug_image, hand_landmarks)
 
                 # Conversion to relative coordinates / normalized coordinates
-                pre_processed_landmark_list = self._pre_process_landmark(
-                    landmark_list)
+                pre_processed_landmark_list = self._pre_process_landmark(landmark_list)
 
                 # Hand sign classification
                 hand_sign_id = self.keypoint_classifier(pre_processed_landmark_list)
 
                 # Chỉ lấy ID 0 và 1
-                if hand_sign_id in [0, 1]:  
+                if hand_sign_id in [0, 1, 2]:  
                     # Drawing part
                     debug_image = self._draw_bounding_rect(USE_BRECT, debug_image, brect)
                     debug_image = self._draw_landmarks(debug_image, landmark_list)
                     debug_image = self._draw_info_text(
                         debug_image,
                         brect,
-                        handedness,
+                        None,  # Bỏ thông tin tay trái/phải
                         self.keypoint_classifier_labels[hand_sign_id]
                     )
                     gesture = self.keypoint_classifier_labels[hand_sign_id]
 
         return debug_image, gesture
+
 
     def draw_fps_info(self, image, fps):
         cv.putText(image, "FPS:" + str(fps), (10, 30), cv.FONT_HERSHEY_SIMPLEX,
@@ -347,16 +342,32 @@ class GestureRecognition:
         return image
 
     def _draw_info_text(self, image, brect, handedness, hand_sign_text):
-        cv.rectangle(image, (brect[0], brect[1]), (brect[2], brect[1] - 22),
-                     (0, 0, 0), -1)
+        """
+        Draws information text on the image.
 
-        info_text = handedness.classification[0].label[0:]
-        if hand_sign_text != "":
-            info_text = info_text + ':' + hand_sign_text
-        cv.putText(image, info_text, (brect[0] + 5, brect[1] - 4),
-                   cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
+        Args:
+            image: The image to draw on.
+            brect: The bounding rectangle of the hand.
+            handedness: Handedness information (optional, can be None).
+            hand_sign_text: The recognized hand gesture label.
+
+        Returns:
+            The modified image with drawn information.
+        """
+        info_text = hand_sign_text  # Chỉ hiển thị tên gesture
+
+        # Nếu cần thêm thông tin về tay (đã loại bỏ handedness ở đây)
+        if handedness is not None:
+            info_text = f"{handedness.classification[0].label[0:]}: {hand_sign_text}"
+
+        # Hiển thị thông tin trong bounding box
+        cv.putText(image, info_text, (brect[0], brect[1] - 10),
+                cv.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 4, cv.LINE_AA)
+        cv.putText(image, info_text, (brect[0], brect[1] - 10),
+                cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv.LINE_AA)
 
         return image
+
 
     def _draw_bounding_rect(self, use_brect, image, brect):
         if use_brect:
